@@ -1,56 +1,26 @@
 # yielder
 
-A BORUIX **scheduler stress program**: it yields the CPU without pause and **never blocks**.
+A BORUIX scheduler stress program: a process that never blocks and only yields the CPU.
 
 [简体中文](README.md)
 
-## What it does
+## Purpose
 
-After starting it enters a loop repeating one action: **yield the CPU**. It computes nothing, sleeps not at all, and waits for nothing.
+It is the minimal reproduction of the "queue holds only a busy-yielding process" scenario: after
+printing one startup line it enters a loop that repeatedly calls the yield interface — no sleep,
+no blocking, permanently ready.
 
-Its state is unusual:
+It exists to verify that the scheduler still gives other processes (such as the shell) timely
+response while such a process is resident: run it, then use the terminal — input should be
+immediate and unqueued.
 
-| State | Is it there? |
-| --- | --- |
-| Running | Briefly |
-| Ready | **Almost always** |
-| Blocked | **Never** |
+It has no verdict and no exit code; its behaviour is what gets observed.
 
-## What it verifies
+## Counterpart
 
-**When the queue holds only such a ceaselessly yielding process, can other processes still respond in time?**
-
-A process that yields endlessly looks "polite", but handled badly by the scheduler the outcome can be other processes starving — it is instantly runnable again, so the scheduler may keep switching between it and the others, leaving the process that genuinely needs to respond (the `shell` a user is typing into, say) without enough runtime. This program is the minimal reproduction of that situation.
-
-## How it differs from spinburn
-
-| Program | Behaviour | State covered |
-| --- | --- | --- |
-| [`spinburn`](https://github.com/BRX-Boruix/spinburn) | Computes, then **sleeps** | **Blocked** most of the time |
-| **`yielder`** | Pure yielding, **never sleeps** | **Always ready** |
-
-The two exercise different branches of the scheduler and **together form complete coverage**: testing only the sleep path never touches the problems on the "always in the ready queue yet keeps yielding" path.
-
-## A criterion that rules out a misdiagnosis
-
-When a system shows "responses are getting slow", at least two explanations are possible, calling for entirely different fixes:
-
-| Possible cause | Fix |
-| --- | --- |
-| Scheduling is genuinely wrong | Change the scheduling logic |
-| Accounting is off | Change how it is recorded |
-
-This program's behaviour is deterministic and predictable (it yields and nothing else, with no variables), so what is observed while it runs can be attributed more cleanly, separating the two.
-
-## Usage
-
-Once started, **observe from outside** — check whether other processes still respond promptly. It has no verdict and **never exits on its own**; it must be forcibly terminated.
-
-```
-[yielder] start (pure busy-yield)
-```
-
-Nothing further after startup: printing on every yield would make standard output itself a burden, interfering with the scheduling behaviour under observation.
+Paired with [`spinburn`](https://github.com/BRX-Boruix/spinburn): spinburn alternates CPU bursts
+with sleeps and spends most of its time blocked; this program is always ready. Together they cover
+the two extremes of scheduling pressure.
 
 ## Building
 
@@ -58,21 +28,21 @@ Nothing further after startup: printing on every yield would make standard outpu
 cargo build --release
 ```
 
-## Layout
+## Repository layout
 
 ```
 yielder/
-├── Cargo.toml    # package definition
+├── Cargo.toml    # package manifest
 ├── build.rs      # injects the linker script
-├── linker.ld     # user-space section layout
+├── linker.ld     # user-space segment layout
 └── src/
-    └── main.rs   # the pure busy-yield loop
+    └── main.rs   # the yield loop
 ```
 
 ## Related projects
 
-- [`spinburn`](https://github.com/BRX-Boruix/spinburn) — the blocked-state stress contrast
-- [`libsys`](https://github.com/BRX-Boruix/libsys) — the user-space syscall wrapper
+- [`spinburn`](https://github.com/BRX-Boruix/spinburn) — the burst-and-sleep stress counterpart
+- [`libsys`](https://github.com/BRX-Boruix/libsys) — the yield interface
 
 ## License
 
